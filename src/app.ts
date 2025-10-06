@@ -24,9 +24,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.options("*", (req, res) => {
-  res.sendStatus(200);
-});
+app.options("*", (req, res) => res.sendStatus(200));
 
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
