@@ -14,37 +14,17 @@ dotenv.config();
 
 const app = express();
 
-// ===================
-// Configuração do CORS
-// ===================
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000", // frontend local
-      "https://jornal-teal.vercel.app", // frontend produção
-    ],
-    credentials: true,
-  })
-);
+app.use(cors());
 
-// ===================
-// Middlewares
-// ===================
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// ===================
-// Rotas públicas
-// ===================
 app.use("/publicidade", publicidadeRoutes);
 app.use("/regions", regionRoutes);
 app.use("/cities", cityRoutes);
 app.use("/news", newsRoutes);
 app.use("/users", userRoutes);
 
-// ===================
-// Middleware JWT de exemplo
-// ===================
 export const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -61,9 +41,6 @@ export const authenticateToken = (req: any, res: any, next: any) => {
   );
 };
 
-// ===================
-// Iniciar servidor
-// ===================
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
