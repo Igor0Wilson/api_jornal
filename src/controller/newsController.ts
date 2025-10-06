@@ -54,13 +54,18 @@ export const getNews = async (req: Request, res: Response) => {
     const { busca, region_id, city_id, dataInicio, dataFim } = req.query;
 
     let query = `
-      SELECT n.*, r.name AS region, c.name AS city, GROUP_CONCAT(ni.image_url) AS images
+      SELECT 
+        n.*, 
+        r.name AS region, 
+        c.name AS city, 
+        JSON_ARRAYAGG(ni.image_url) AS images
       FROM news n
       LEFT JOIN news_images ni ON n.id = ni.news_id
       LEFT JOIN cities c ON n.city_id = c.id
       LEFT JOIN regions r ON c.region_id = r.id
       WHERE 1=1
     `;
+
     const params: any[] = [];
 
     if (busca) {
@@ -68,18 +73,22 @@ export const getNews = async (req: Request, res: Response) => {
       params.push(`%${(busca as string).toLowerCase()}%`);
       params.push(`%${(busca as string).toLowerCase()}%`);
     }
+
     if (region_id) {
       query += ` AND r.id = ?`;
       params.push(region_id);
     }
+
     if (city_id) {
       query += ` AND c.id = ?`;
       params.push(city_id);
     }
+
     if (dataInicio) {
       query += ` AND DATE(n.created_at) >= ?`;
       params.push(dataInicio);
     }
+
     if (dataFim) {
       query += ` AND DATE(n.created_at) <= ?`;
       params.push(dataFim);
@@ -87,27 +96,33 @@ export const getNews = async (req: Request, res: Response) => {
 
     query += ` GROUP BY n.id ORDER BY n.created_at DESC`;
 
-    const [rows] = await db.query(query, params);
+    const [rows]: any = await db.query(query, params);
 
-    const newsWithImages = (rows as any[]).map((row) => ({
+    // Garante que 'images' seja array válido
+    const formatted = rows.map((row: any) => ({
       ...row,
-      images: row.images ? row.images.split(",") : [],
+      images: Array.isArray(row.images)
+        ? row.images.filter((i: any) => i !== null)
+        : [],
     }));
 
-    res.json(newsWithImages);
+    res.json(formatted);
   } catch (err) {
     console.error("Erro ao buscar notícias:", err);
-    res.status(500).json({ error: err });
+    res.status(500).json({ error: "Erro ao buscar notícias" });
   }
 };
 
 // Buscar notícia por ID
 export const getNewsById = async (req: Request, res: Response) => {
   const { id } = req.params;
+
   try {
     const [rows]: any = await db.query(
       `
-      SELECT n.*, GROUP_CONCAT(ni.image_url) AS images
+      SELECT 
+        n.*, 
+        JSON_ARRAYAGG(ni.image_url) AS images
       FROM news n
       LEFT JOIN news_images ni ON n.id = ni.news_id
       WHERE n.id = ?
@@ -116,17 +131,21 @@ export const getNewsById = async (req: Request, res: Response) => {
       [id]
     );
 
-    if (rows.length === 0) {
+    if (!rows.length) {
       return res.status(404).json({ message: "Notícia não encontrada" });
     }
 
     const noticia = rows[0];
-    noticia.images = noticia.images ? noticia.images.split(",") : [];
+
+    // Garante que images seja sempre um array de strings válidas
+    noticia.images = Array.isArray(noticia.images)
+      ? noticia.images.filter((url: string) => !!url)
+      : [];
 
     res.json(noticia);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err });
+    console.error("Erro ao buscar notícia por ID:", err);
+    res.status(500).json({ error: "Erro ao buscar notícia" });
   }
 };
 

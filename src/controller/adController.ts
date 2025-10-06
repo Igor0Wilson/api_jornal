@@ -46,9 +46,30 @@ export const createAd = async (req: Request, res: Response) => {
 export const getAds = async (req: Request, res: Response) => {
   try {
     const [rows]: any = await db.query(
-      "SELECT * FROM ads ORDER BY priority DESC, created_at DESC"
+      `
+      SELECT 
+        id, 
+        title, 
+        link, 
+        priority, 
+        created_at, 
+        image_url
+      FROM ads
+      ORDER BY priority DESC, created_at DESC
+      `
     );
-    res.json(rows);
+
+    // se quiser garantir formato consistente:
+    const ads = rows.map((ad: any) => ({
+      id: ad.id,
+      title: ad.title,
+      link: ad.link,
+      priority: ad.priority,
+      created_at: ad.created_at,
+      image: ad.image_url ? ad.image_url : null, // Cloudinary URL
+    }));
+
+    res.json(ads);
   } catch (err) {
     console.error("Erro ao buscar publicidades:", err);
     res.status(500).json({ error: "Erro ao buscar publicidades" });
