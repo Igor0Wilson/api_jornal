@@ -3,9 +3,12 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export const db = createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
+  host: process.env.DB_HOST, // interchange.proxy.rlwy.net
+  port: Number(process.env.DB_PORT), // 27807
+  user: process.env.DB_USER, // root
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  port: Number(process.env.DB_PORT), // adicionado a porta do Railway
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
