@@ -26,13 +26,11 @@ const JWT_SECRET = "chavesecreta";
 export const loginUser = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  // 1️⃣ Validação básica
   if (!email || !password) {
     return res.status(400).json({ error: "Email e senha são obrigatórios" });
   }
 
   try {
-    // 2️⃣ Buscar usuário pelo e-mail
     const [rows]: any = await db.query("SELECT * FROM users WHERE email = ?", [
       email,
     ]);
@@ -42,24 +40,26 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Credenciais inválidas" });
     }
 
-    // 3️⃣ Comparar senha
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciais inválidas" });
     }
 
-    // 4️⃣ Gerar token JWT
     const token = jwt.sign(
       { id: user.id, name: user.name, email: user.email },
       JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    // 5️⃣ Retornar sucesso com token
     res.json({ message: "Login realizado com sucesso", token });
   } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: "Erro interno do servidor" });
+    console.error("Erro detalhado:", err);
+
+    // Se quiser enviar o erro real no corpo (somente teste!)
+    res.status(500).json({
+      error: "Erro interno do servidor",
+      details: err.message || err,
+    });
   }
 };
 
