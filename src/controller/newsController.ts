@@ -1,21 +1,41 @@
 import { Request, Response } from "express";
 import { db } from "../models/newsModel";
+import cloudinary from "../middleware/cloudinary";
 
 // Criar notícia
 export const createNews = async (req: Request, res: Response) => {
   const { title, content, city_id, category } = req.body;
-  const files = req.files as Express.Multer.File[]; // todos os arquivos
+  const files = req.files as Express.Multer.File[];
 
   try {
+    // Inserir notícia no banco
     const [result]: any = await db.query(
       "INSERT INTO news (title, content, city_id, category) VALUES (?, ?, ?, ?)",
       [title, content, city_id, category]
     );
-
     const newsId = result.insertId;
 
     if (files && files.length > 0) {
-      const imageInserts = files.map((file) => [newsId, file.path]);
+      const imageUrls: string[] = [];
+
+      for (const file of files) {
+        // Upload para Cloudinary usando buffer
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "jornal" },
+            (error: any, result: any) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+          (file as any).stream?.pipe(stream) || stream.end(file.buffer);
+        });
+
+        imageUrls.push(uploadResult.secure_url);
+      }
+
+      // Inserir URLs no banco
+      const imageInserts = imageUrls.map((url) => [newsId, url]);
       await db.query("INSERT INTO news_images (news_id, image_url) VALUES ?", [
         imageInserts,
       ]);
@@ -23,6 +43,7 @@ export const createNews = async (req: Request, res: Response) => {
 
     res.status(201).json({ message: "Notícia criada", id: newsId });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err });
   }
 };
@@ -32,7 +53,6 @@ export const getNews = async (req: Request, res: Response) => {
   try {
     const { busca, region_id, city_id, dataInicio, dataFim } = req.query;
 
-    // Monta query base
     let query = `
       SELECT n.*, r.name AS region, c.name AS city, GROUP_CONCAT(ni.image_url) AS images
       FROM news n
@@ -41,29 +61,21 @@ export const getNews = async (req: Request, res: Response) => {
       LEFT JOIN regions r ON c.region_id = r.id
       WHERE 1=1
     `;
-
     const params: any[] = [];
 
-    // Filtro por busca (title ou category)
     if (busca) {
       query += ` AND (LOWER(n.title) LIKE ? OR LOWER(n.category) LIKE ?)`;
       params.push(`%${(busca as string).toLowerCase()}%`);
       params.push(`%${(busca as string).toLowerCase()}%`);
     }
-
-    // Filtro por região
     if (region_id) {
       query += ` AND r.id = ?`;
       params.push(region_id);
     }
-
-    // Filtro por cidade
     if (city_id) {
       query += ` AND c.id = ?`;
       params.push(city_id);
     }
-
-    // Filtro por intervalo de datas
     if (dataInicio) {
       query += ` AND DATE(n.created_at) >= ?`;
       params.push(dataInicio);
@@ -73,12 +85,10 @@ export const getNews = async (req: Request, res: Response) => {
       params.push(dataFim);
     }
 
-    // Agrupa e ordena
     query += ` GROUP BY n.id ORDER BY n.created_at DESC`;
 
     const [rows] = await db.query(query, params);
 
-    // Converte string de imagens em array
     const newsWithImages = (rows as any[]).map((row) => ({
       ...row,
       images: row.images ? row.images.split(",") : [],
@@ -91,7 +101,7 @@ export const getNews = async (req: Request, res: Response) => {
   }
 };
 
-// newsController.ts
+// Buscar notícia por ID
 export const getNewsById = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
@@ -102,7 +112,7 @@ export const getNewsById = async (req: Request, res: Response) => {
       LEFT JOIN news_images ni ON n.id = ni.news_id
       WHERE n.id = ?
       GROUP BY n.id
-    `,
+      `,
       [id]
     );
 
@@ -115,6 +125,7 @@ export const getNewsById = async (req: Request, res: Response) => {
 
     res.json(noticia);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err });
   }
 };
@@ -129,6 +140,7 @@ export const deleteNews = async (req: Request, res: Response) => {
     }
     res.json({ message: "Notícia deletada com sucesso" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err });
   }
 };
@@ -147,17 +159,32 @@ export const updateNews = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Notícia não encontrada" });
     }
 
-    const query = `
-      UPDATE news 
-      SET title = ?, content = ?, city_id = ?, category = ?
-      WHERE id = ?
-    `;
-    await db.query(query, [title, content, city_id, category, id]);
+    await db.query(
+      `UPDATE news SET title = ?, content = ?, city_id = ?, category = ? WHERE id = ?`,
+      [title, content, city_id, category, id]
+    );
 
     if (files && files.length > 0) {
       await db.query("DELETE FROM news_images WHERE news_id = ?", [id]);
 
-      const imageInserts = files.map((file) => [id, file.path]);
+      const imageUrls: string[] = [];
+
+      for (const file of files) {
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "jornal" },
+            (error: any, result: any) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+          (file as any).stream?.pipe(stream) || stream.end(file.buffer);
+        });
+
+        imageUrls.push(uploadResult.secure_url);
+      }
+
+      const imageInserts = imageUrls.map((url) => [id, url]);
       await db.query("INSERT INTO news_images (news_id, image_url) VALUES ?", [
         imageInserts,
       ]);
@@ -165,6 +192,7 @@ export const updateNews = async (req: Request, res: Response) => {
 
     res.json({ message: "Notícia atualizada com sucesso" });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err });
   }
 };

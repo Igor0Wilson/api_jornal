@@ -14,20 +14,25 @@ dotenv.config();
 
 const app = express();
 
+// Configurações de CORS
 app.use(cors({ origin: "*", credentials: true }));
 
+// Parse de JSON
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
 
+// Rotas
 app.use("/publicidade", publicidadeRoutes);
 app.use("/regions", regionRoutes);
 app.use("/cities", cityRoutes);
 app.use("/news", newsRoutes);
 app.use("/users", userRoutes);
+
+// Interface customizada para JWT
 interface AuthRequest extends Request {
   user?: string | JwtPayload;
 }
 
+// Middleware de autenticação JWT
 export const authenticateToken = (
   req: AuthRequest,
   res: Response,
@@ -45,6 +50,7 @@ export const authenticateToken = (
   });
 };
 
+// Porta do servidor
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);

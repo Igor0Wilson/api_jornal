@@ -1,5 +1,5 @@
 import { Router } from "express";
-import upload from "../middleware/upload"; // usa o que você já tem
+import upload from "../middleware/upload"; // Multer em memória para Cloudinary
 import {
   createAd,
   getAds,
@@ -9,6 +9,7 @@ import {
 
 const router = Router();
 
+// Rotas de publicidade
 router.post("/", upload.single("image"), createAd);
 router.get("/", getAds);
 router.put("/:id", upload.single("image"), updateAd);

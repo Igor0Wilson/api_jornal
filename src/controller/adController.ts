@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { db } from "../models/adModel";
+import cloudinary from "../middleware/cloudinary";
 
 // Criar publicidade
 export const createAd = async (req: Request, res: Response) => {
@@ -11,7 +12,19 @@ export const createAd = async (req: Request, res: Response) => {
   }
 
   try {
-    const image_url = `uploads/${file.filename}`;
+    // Upload da imagem para Cloudinary
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "ads" },
+        (error: any, result: any) => {
+          if (error) return reject(error);
+          resolve(result);
+        }
+      );
+      (file as any).stream?.pipe(stream) || stream.end(file.buffer);
+    });
+
+    const image_url = uploadResult.secure_url;
 
     const [result]: any = await db.query(
       "INSERT INTO ads (title, image_url, link, priority, user_id, active) VALUES (?, ?, ?, ?, ?, ?)",
@@ -54,7 +67,20 @@ export const updateAd = async (req: Request, res: Response) => {
     const params: any[] = [title, link, priority ?? 0, active ?? 1, id];
 
     if (file) {
-      const image_url = `uploads/${file.filename}`;
+      // Upload da nova imagem para Cloudinary
+      const uploadResult = await new Promise<any>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "ads" },
+          (error: any, result: any) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        (file as any).stream?.pipe(stream) || stream.end(file.buffer);
+      });
+
+      const image_url = uploadResult.secure_url;
+
       query =
         "UPDATE ads SET title = ?, link = ?, priority = ?, active = ?, image_url = ? WHERE id = ?";
       params.splice(4, 0, image_url);
