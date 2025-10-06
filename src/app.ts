@@ -14,27 +14,36 @@ dotenv.config();
 
 const app = express();
 
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  next();
-});
+// ===================
+// CORS aberto para qualquer frontend
+// ===================
+app.use(
+  cors({
+    origin: "*", // qualquer frontend pode acessar
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true, // se precisar de cookies ou auth headers
+  })
+);
 
-app.options("*", (req, res) => res.sendStatus(200));
-
+// ===================
+// Middlewares
+// ===================
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
+// ===================
+// Rotas
+// ===================
 app.use("/publicidade", publicidadeRoutes);
 app.use("/regions", regionRoutes);
 app.use("/cities", cityRoutes);
 app.use("/news", newsRoutes);
 app.use("/users", userRoutes);
 
+// ===================
+// JWT middleware
+// ===================
 export const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
@@ -51,6 +60,9 @@ export const authenticateToken = (req: any, res: any, next: any) => {
   );
 };
 
+// ===================
+// Start server
+// ===================
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
