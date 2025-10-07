@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { db } from "../models/cityModel";
+import { db } from "../models/bdModel";
 
 export const createCity = async (req: Request, res: Response) => {
   const { name, region_id } = req.body;

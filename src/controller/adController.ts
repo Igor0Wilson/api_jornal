@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { db } from "../models/adModel";
+import { db } from "../models/bdModel";
 import cloudinary from "../middleware/cloudinary";
 
 // Criar publicidade

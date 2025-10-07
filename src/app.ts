@@ -9,6 +9,7 @@ import cityRoutes from "./routes/cityRoutes";
 import newsRoutes from "./routes/newsRoutes";
 import userRoutes from "./routes/userRoutes";
 import publicidadeRoutes from "./routes/adRoutes";
+import partnerRoutes from "./routes/partnerRoutes";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use("/regions", regionRoutes);
 app.use("/cities", cityRoutes);
 app.use("/news", newsRoutes);
 app.use("/users", userRoutes);
+app.use("/partners", partnerRoutes);
 
 // Interface customizada para JWT
 interface AuthRequest extends Request {

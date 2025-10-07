@@ -1,17 +1,17 @@
 import { Request, Response } from "express";
-import { db } from "../models/newsModel";
+import { db } from "../models/bdModel";
 import cloudinary from "../middleware/cloudinary";
 
 // Criar notícia
 export const createNews = async (req: Request, res: Response) => {
-  const { title, content, city_id, category } = req.body;
+  const { title, content, city_id, category, reading_time } = req.body; // ✅ novo campo
   const files = req.files as Express.Multer.File[];
 
   try {
-    // Inserir notícia no banco
+    // Inserir notícia no banco (com tempo de leitura)
     const [result]: any = await db.query(
-      "INSERT INTO news (title, content, city_id, category) VALUES (?, ?, ?, ?)",
-      [title, content, city_id, category]
+      "INSERT INTO news (title, content, city_id, category, reading_time) VALUES (?, ?, ?, ?, ?)",
+      [title, content, city_id, category, reading_time]
     );
     const newsId = result.insertId;
 
@@ -41,10 +41,10 @@ export const createNews = async (req: Request, res: Response) => {
       ]);
     }
 
-    res.status(201).json({ message: "Notícia criada", id: newsId });
+    res.status(201).json({ message: "Notícia criada com sucesso", id: newsId });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err });
+    res.status(500).json({ error: "Erro ao criar notícia" });
   }
 };
 
@@ -121,71 +121,74 @@ export const getNewsById = async (req: Request, res: Response) => {
     const [rows]: any = await db.query(
       `
       SELECT 
-        n.*, 
-        JSON_ARRAYAGG(ni.image_url) AS images
+        n.id,
+        n.title,
+        n.content,
+        n.category,
+        n.reading_time,
+        n.city_id,
+        c.name AS city_name,
+        n.created_at,
+        (
+          SELECT JSON_ARRAYAGG(image_url)
+          FROM news_images
+          WHERE news_id = n.id
+        ) AS images
       FROM news n
-      LEFT JOIN news_images ni ON n.id = ni.news_id
+      LEFT JOIN cities c ON c.id = n.city_id
       WHERE n.id = ?
-      GROUP BY n.id
       `,
       [id]
     );
 
-    if (!rows.length) {
+    if (rows.length === 0)
       return res.status(404).json({ message: "Notícia não encontrada" });
-    }
 
-    const noticia = rows[0];
-
-    // Garante que images seja sempre um array de strings válidas
-    noticia.images = Array.isArray(noticia.images)
-      ? noticia.images.filter((url: string) => !!url)
-      : [];
-
-    res.json(noticia);
+    res.json(rows[0]);
   } catch (err) {
-    console.error("Erro ao buscar notícia por ID:", err);
+    console.error("Erro ao buscar notícia:", err);
     res.status(500).json({ error: "Erro ao buscar notícia" });
   }
 };
-
 // Deletar notícia
 export const deleteNews = async (req: Request, res: Response) => {
   const { id } = req.params;
+
   try {
+    // Remove imagens relacionadas
+    await db.query("DELETE FROM news_images WHERE news_id = ?", [id]);
+    // Remove notícia
     const [result]: any = await db.query("DELETE FROM news WHERE id = ?", [id]);
-    if (result.affectedRows === 0) {
+
+    if (result.affectedRows === 0)
       return res.status(404).json({ message: "Notícia não encontrada" });
-    }
+
     res.json({ message: "Notícia deletada com sucesso" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err });
+    console.error("Erro ao deletar notícia:", err);
+    res.status(500).json({ error: "Erro ao deletar notícia" });
   }
 };
 
 // Atualizar notícia
 export const updateNews = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { title, content, city_id, category } = req.body;
+  const { title, content, category, city_id, reading_time } = req.body;
   const files = req.files as Express.Multer.File[];
 
   try {
-    const [existing]: any = await db.query("SELECT * FROM news WHERE id = ?", [
-      id,
-    ]);
-    if (existing.length === 0) {
-      return res.status(404).json({ message: "Notícia não encontrada" });
-    }
-
+    // Atualiza dados da notícia
     await db.query(
-      `UPDATE news SET title = ?, content = ?, city_id = ?, category = ? WHERE id = ?`,
-      [title, content, city_id, category, id]
+      `
+      UPDATE news 
+      SET title = ?, content = ?, category = ?, city_id = ?, reading_time = ?
+      WHERE id = ?
+      `,
+      [title, content, category, city_id, reading_time, id]
     );
 
+    // Se houver novas imagens, envia para o Cloudinary e substitui
     if (files && files.length > 0) {
-      await db.query("DELETE FROM news_images WHERE news_id = ?", [id]);
-
       const imageUrls: string[] = [];
 
       for (const file of files) {
@@ -203,6 +206,8 @@ export const updateNews = async (req: Request, res: Response) => {
         imageUrls.push(uploadResult.secure_url);
       }
 
+      // Remove imagens antigas e insere novas
+      await db.query("DELETE FROM news_images WHERE news_id = ?", [id]);
       const imageInserts = imageUrls.map((url) => [id, url]);
       await db.query("INSERT INTO news_images (news_id, image_url) VALUES ?", [
         imageInserts,
@@ -211,7 +216,7 @@ export const updateNews = async (req: Request, res: Response) => {
 
     res.json({ message: "Notícia atualizada com sucesso" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err });
+    console.error("Erro ao atualizar notícia:", err);
+    res.status(500).json({ error: "Erro ao atualizar notícia" });
   }
 };
