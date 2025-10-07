@@ -7,6 +7,9 @@ export const createPartner = async (req: Request, res: Response) => {
   const { company_name, description, link } = req.body;
   const file = req.file;
 
+  console.log("BODY:", req.body);
+  console.log("FILE:", req.file);
+
   if (!company_name || !description || !link || !file) {
     return res
       .status(400)
@@ -65,49 +68,6 @@ export const getPartners = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Erro ao buscar parceiros:", err);
     res.status(500).json({ error: "Erro ao buscar parceiros" });
-  }
-};
-
-// Atualizar parceiro
-export const updatePartner = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { company_name, description, link } = req.body;
-  const file = req.file;
-
-  try {
-    let query =
-      "UPDATE partners SET company_name = ?, description = ?, link = ? WHERE id = ?";
-    const params: any[] = [company_name, description, link, id];
-
-    if (file) {
-      // Upload da nova imagem para Cloudinary
-      const uploadResult = await new Promise<any>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "partners" },
-          (error: any, result: any) => {
-            if (error) return reject(error);
-            resolve(result);
-          }
-        );
-        (file as any).stream?.pipe(stream) || stream.end(file.buffer);
-      });
-
-      const image_url = uploadResult.secure_url;
-
-      query =
-        "UPDATE partners SET company_name = ?, description = ?, link = ?, image_url = ? WHERE id = ?";
-      params.splice(3, 0, image_url);
-    }
-
-    const [result]: any = await db.query(query, params);
-
-    if (result.affectedRows === 0)
-      return res.status(404).json({ message: "Parceiro não encontrado" });
-
-    res.json({ message: "Parceiro atualizado com sucesso" });
-  } catch (err) {
-    console.error("Erro ao atualizar parceiro:", err);
-    res.status(500).json({ error: "Erro ao atualizar parceiro" });
   }
 };
 
